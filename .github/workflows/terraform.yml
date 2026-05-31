@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
@@ -33,13 +33,20 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      # PR Checks Only
+      - name: Terraform Format Check
+        if: github.event_name == 'pull_request'
+        run: terraform fmt -check -recursive
+
       - name: Terraform Validate
+        if: github.event_name == 'pull_request'
         run: terraform validate
 
       - name: Terraform Plan
         if: github.event_name == 'pull_request'
-        run: terraform plan
+        run: terraform plan -no-color
 
+      # Apply Only After Merge to Main
       - name: Terraform Apply
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve
