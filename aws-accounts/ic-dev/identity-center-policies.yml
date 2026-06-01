@@ -1,0 +1,85 @@
+Resources:
+  PolicyDenyAllOutsideWhitelistedRegions:
+    Type: "AWS::IAM::ManagedPolicy"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W13
+            reason: "* is allowed in development account."
+    Properties:
+      ManagedPolicyName: Policy-DenyAllOutsideWhitelistedRegions
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyAllOutsideRequestedRegions
+            Effect: Deny
+            NotAction:
+              - cloudfront:*
+              - iam:*
+              - route53:*
+              - support:*
+            Resource: "*"
+            Condition:
+              StringNotEquals:
+                aws:RequestedRegion:
+                  - "ap-south-1"
+
+  Trust:
+    Type: "AWS::IAM::Role"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: "allowed due to permissions being defined before this requirement was enforced."
+    Properties:
+      RoleName: GroupAccess-Trust
+      ManagedPolicyArns:
+        - !Ref PolicyDenyAllOutsideWhitelistedRegions
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+        - arn:aws:iam::aws:policy/IAMReadOnlyAccess
+      Policies:
+        - PolicyName: Policy-Trust-S3ReadScoped
+          PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: LambdaEventSource
+                  Effect: Allow
+                  Action:
+                  - s3:List*
+                  - s3:Get*
+                  Resource:
+                  - arn:aws:s3:::logs-incontact
+                  - arn:aws:s3:::logs-incontact/*
+        - PolicyName: Policy-Trust-EventBridge
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:EnableRule
+                  - events:DisableRule
+                Resource:
+                  - arn:aws:events:*:*:rule/GuardDuty-Rapid7
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              AWS:
+                - arn:aws:iam::736763050260:root
+            Action:
+              - sts:AssumeRole
+            Condition:
+              Bool:
+                aws:MultiFactorAuthPresent: true
+          -
+            Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:saml-provider/okta_nicecxone.okta.com"
+            Action:
+              - "sts:AssumeRoleWithSAML"
+            Condition:
+              StringEquals:
+                SAML:aud: "https://signin.aws.amazon.com/saml"
